@@ -31,7 +31,7 @@ private:
     int nframes; // used to calculate actual frame rate
     QTime time; // used to calculate actual frame rate
 
-    QImage IplImage2QImage(const IplImage *iplImage);
+	QImage Mat2QImage(const cv::Mat3b &src);
 
 
 

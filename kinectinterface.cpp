@@ -1,7 +1,7 @@
 #include "kinectinterface.h"
 #include <qDebug>
 #include <QWidget>
-#define COLORSCALE 0.4
+#define COLORSCALE 0.3
 
 KinectInterface::KinectInterface(QObject *parent) : QObject(parent)
 {
@@ -15,7 +15,10 @@ void KinectInterface::startCapture()
 
     nframes = 0; // init
     frameRate = 30;
-    timerId = startTimer(1000 / frameRate); // in msec
+
+    //timerId = startTimer(1000 / frameRate); // in msec
+    timerId = startTimer(100); // in msec
+
     time.start(); // start time
 
 }
@@ -36,28 +39,24 @@ void KinectInterface::stopCapture()
 void KinectInterface::timerEvent(QTimerEvent *event)
 {
 
-    qDebug() << timerId;
+    //qDebug() << timerId;
     if (event->timerId() == timerId)
     {
 
 
         cv::Mat colorMat = kinect->get_colorframe(COLORSCALE);
-        cv::imshow( "Color", colorMat );
+		//cv::imshow( "Color", colorMat );
 
 
+		cv::cvtColor(colorMat, colorMat, CV_BGR2RGB);
+		QImage image = QImage((uchar*)colorMat.data, colorMat.cols, colorMat.rows, colorMat.step, QImage::Format_RGB888);
+		//QImage image = Mat2QImage(colorMat); // convert
+		pixmap = QPixmap::fromImage(image); // convert
 
-        //IplImage *frame=webcam->getImage();
 
+		emit getImageFromCamera(pixmap);
+		
 
-
-/*
-
-        QImage image = IplImage2QImage(frame); // convert
-        pixmap = QPixmap::fromImage(image); // convert
-        //repaint(); // immediate repaint
-
-        emit getImageFromCamera(pixmap);
-*/
         if (++nframes == 50)
         {
             qDebug("frame rate: %f", // actual frame rate
@@ -74,34 +73,19 @@ void KinectInterface::timerEvent(QTimerEvent *event)
 }
 
 
-// Convert OpenCV's IplImage to QImage.
-QImage KinectInterface::IplImage2QImage(const IplImage *iplImage)
+// Convert OpenCV's Mat to QImage.
+QImage KinectInterface::Mat2QImage(const cv::Mat3b &src)
 {
-    if (!iplImage) return QImage();
+	//strip appear
 
-    int height = iplImage->height;
-    int width = iplImage->width;
-    if(iplImage->depth == IPL_DEPTH_8U && iplImage->nChannels == 3) // colour image
-    {
-        const uchar *qImageBuffer = (const uchar*) iplImage->imageData;
-        QImage img(qImageBuffer, width, height,
-        QImage::Format_RGB888);
-        return img.rgbSwapped();
-    }
-    else if(iplImage->depth == IPL_DEPTH_8U && iplImage->nChannels == 1) // gray image
-    {
-        const uchar *qImageBuffer = (const uchar*) iplImage->imageData;
-        QImage img(qImageBuffer, width, height,
-        QImage::Format_Indexed8);
-        QVector<QRgb> colorTable; // set up colour table
-        for (int i = 0; i < 256; i++)
-            colorTable.append(qRgb(i, i, i));
-        img.setColorTable(colorTable);
-        return img;
-    }
-    else
-    {
-        qWarning() << "Image cannot be converted.";
-        return QImage();
-    }
+	QImage dest(src.cols, src.rows, QImage::Format_ARGB32);
+	for (int y = 0; y < src.rows; ++y) {
+		const cv::Vec3b *srcrow = src[y];
+		QRgb *destrow = (QRgb*)dest.scanLine(y);
+		for (int x = 0; x < src.cols; ++x) {
+			destrow[x] = qRgba(srcrow[x][2], srcrow[x][1], srcrow[x][0], 255);
+		}
+	}
+	
+	return dest;
 }
