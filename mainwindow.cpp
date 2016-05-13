@@ -18,6 +18,18 @@ MainWindow::MainWindow(QWidget *parent) :
 
     //if [CameraInterface *camera] send QPixmap data to this class, update it to [ui->videoWidget]
     connect(camera, SIGNAL(getImageFromCamera(QPixmap)), ui->videoWidget, SLOT(setPixmap(QPixmap)));
+    //qvtkWidget
+
+
+
+	ui->qvtkWidget->SetRenderWindow(camera->viewer->getRenderWindow());
+	camera->viewer->setupInteractor(ui->qvtkWidget->GetInteractor(), ui->qvtkWidget->GetRenderWindow());
+	ui->qvtkWidget->update();
+	
+
+	connect(camera, SIGNAL(updateQvtk()), ui->qvtkWidget, SLOT(update()));
+
+
 }
 
 MainWindow::~MainWindow()

@@ -171,6 +171,68 @@ Mat MyKinect::get_colorframe(float COLORSCALE)
 	return colorMat;
 }
 
+
+void MyKinect::get_depthframe()
+{
+    // Acquire Latest Depth Frame
+    IDepthFrame* pDepthFrame = nullptr;
+    hResult = pDepthReader->AcquireLatestFrame( &pDepthFrame );
+    if( SUCCEEDED( hResult ) ){
+        // Retrieved Depth Data
+        hResult = pDepthFrame->CopyFrameDataToArray( depthBuffer.size(), &depthBuffer[0] );
+        if( FAILED( hResult ) ){
+            std::cerr << "Error : IDepthFrame::CopyFrameDataToArray()" << std::endl;
+        }
+    }
+    SafeRelease( pDepthFrame );
+}
+
+
+void MyKinect::mapping_pointcloud(pcl::PointCloud<PointTypeXYZRGB>::Ptr pointcloud)
+{
+    //pcl::PointCloud<PointTypeXYZRGB>::Ptr pointcloud( new pcl::PointCloud<PointTypeXYZRGB>() );
+    pointcloud->width = static_cast<uint32_t>( depthWidth );
+    pointcloud->height = static_cast<uint32_t>( depthHeight );
+    pointcloud->is_dense = false;
+
+    pointcloud->clear();
+
+        for( int y = 0; y < depthHeight; y++ ){
+            for( int x = 0; x < depthWidth; x++ ){
+                pcl::PointXYZRGB point;
+
+                DepthSpacePoint depthSpacePoint = { static_cast<float>( x ), static_cast<float>( y ) };
+                UINT16 depth = depthBuffer[y * depthWidth + x];
+
+                // Coordinate Mapping Depth to Color Space, and Setting PointCloud RGB
+                ColorSpacePoint colorSpacePoint = { 0.0f, 0.0f };
+                pCoordinateMapper->MapDepthPointToColorSpace( depthSpacePoint, depth, &colorSpacePoint );
+                int colorX = static_cast<int>( std::floor( colorSpacePoint.X + 0.5f ) );
+                int colorY = static_cast<int>( std::floor( colorSpacePoint.Y + 0.5f ) );
+                if( ( 0 <= colorX ) && ( colorX < colorWidth ) && ( 0 <= colorY ) && ( colorY < colorHeight ) ){
+                    RGBQUAD color = colorBuffer[colorY * colorWidth + colorX];
+                    point.b = color.rgbBlue;
+                    point.g = color.rgbGreen;
+                    point.r = color.rgbRed;
+                }
+
+                // Coordinate Mapping Depth to Camera Space, and Setting PointCloud XYZ
+                CameraSpacePoint cameraSpacePoint = { 0.0f, 0.0f, 0.0f };
+                pCoordinateMapper->MapDepthPointToCameraSpace( depthSpacePoint, depth, &cameraSpacePoint );
+                if( ( 0 <= colorX ) && ( colorX < colorWidth ) && ( 0 <= colorY ) && ( colorY < colorHeight ) ){
+                    point.x = cameraSpacePoint.X;
+                    point.y = cameraSpacePoint.Y;
+                    point.z = cameraSpacePoint.Z;
+                }
+
+                pointcloud->push_back( point );
+            }
+        }
+
+
+}
+
+
 void MyKinect::release_kinect()
 {
 	SafeRelease(pColorReader);
